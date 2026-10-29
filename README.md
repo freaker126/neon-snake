@@ -9,4 +9,4 @@ A single-file retro neon arcade Snake game built with pure HTML5, CSS3, and Java
 * 🏆 **High Score System:** Keeps track of your best runs locally using browser `localStorage`.
 * ⚡ **Glow Aesthetic:** Pure CSS & Canvas neon glow retro visual design.
 
-👉 **[Play Freaker126 Neon Snake Live Here](https://freaker125.github.io/neon-snake/)**
+👉 **[Play Freaker126 Neon Snake Live Here](https://freaker126.github.io/neon-snake/)**
