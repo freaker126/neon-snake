@@ -46,14 +46,14 @@
             background-color: #050505;
             width: 100%;
             max-width: 400px;
-            max-height: 55vh;
+            max-height: 60vh;
             aspect-ratio: 1 / 1;
             object-fit: contain;
         }
         .btn-container {
             display: flex;
             gap: 10px;
-            margin-top: 8px;
+            margin-top: 10px;
             z-index: 10;
         }
         button {
@@ -75,29 +75,10 @@
             box-shadow: none;
             text-shadow: none;
         }
-        .dpad {
-            display: grid;
-            grid-template-columns: repeat(3, 45px);
-            grid-template-rows: repeat(2, 45px);
-            gap: 5px;
-            margin-top: 10px;
-        }
-        .dpad button {
-            padding: 0;
-            font-size: 18px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .dpad-up { grid-column: 2; grid-row: 1; }
-        .dpad-left { grid-column: 1; grid-row: 2; }
-        .dpad-down { grid-column: 2; grid-row: 2; }
-        .dpad-right { grid-column: 3; grid-row: 2; }
 
         @media (max-height: 550px) {
             h1 { font-size: 15px; margin-bottom: 2px; }
-            canvas { max-height: 45vh; }
-            .dpad { display: none; }
+            canvas { max-height: 50vh; }
         }
     </style>
 </head>
@@ -116,13 +97,6 @@
     <button id="muteBtn" onclick="toggleMusic()">MUSIC: ON</button>
     <button id="pauseBtn" onclick="togglePause()">PAUSE</button>
     <button id="quitBtn" onclick="quitGame()">RESET</button>
-</div>
-
-<div class="dpad">
-    <button class="dpad-up" onclick="setDirection('UP')">▲</button>
-    <button class="dpad-left" onclick="setDirection('LEFT')">◄</button>
-    <button class="dpad-down" onclick="setDirection('DOWN')">▼</button>
-    <button class="dpad-right" onclick="setDirection('RIGHT')">►</button>
 </div>
 
 <script>
@@ -373,8 +347,9 @@ function render() {
 
     if (gameState === "START") {
         drawText("FREAKER126 SNAKE", canvas.width / 2, canvas.height / 2 - 50, "#00ffff", "28px");
-        drawText("SWIPE / KEYS / DPAD TO MOVE", canvas.width / 2, canvas.height / 2, "#39ff14", "15px");
-        drawText("TAP OR SPACE TO START", canvas.width / 2, canvas.height / 2 + 50, "#ff007f", "18px");
+        drawText("KEYS: WASD / ARROWS", canvas.width / 2, canvas.height / 2 - 10, "#39ff14", "16px");
+        drawText("MOBILE: SWIPE TO MOVE", canvas.width / 2, canvas.height / 2 + 20, "#39ff14", "16px");
+        drawText("TAP OR SPACE TO START", canvas.width / 2, canvas.height / 2 + 70, "#ff007f", "18px");
     } else if (gameState === "GAMEOVER") {
         drawText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40, "#ff007f", "36px");
         drawText(`FINAL SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 10, "#00ffff", "20px");
