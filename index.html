@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Freaker126 Neon Snake</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding: 5px;
+            background-color: #0d0d0d;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none;
+        }
+        h1 {
+            color: #00ffff;
+            text-shadow: 0 0 15px #00ffff;
+            margin: 0 0 5px 0;
+            font-size: clamp(18px, 4vw, 26px);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        .scoreboard {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 400px;
+            color: #39ff14;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-shadow: 0 0 8px #39ff14;
+        }
+        canvas {
+            border: 3px solid #39ff14;
+            box-shadow: 0 0 15px #39ff14, inset 0 0 15px #39ff14;
+            background-color: #050505;
+            width: 100%;
+            max-width: 400px;
+            max-height: 55vh;
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
+        }
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+            z-index: 10;
+        }
+        button {
+            background-color: #ff007f;
+            color: #fff;
+            border: 2px solid #ff007f;
+            box-shadow: 0 0 8px #ff007f;
+            padding: 6px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            text-shadow: 0 0 5px #fff;
+        }
+        button.muted, button.paused {
+            background-color: #333;
+            color: #888;
+            border-color: #555;
+            box-shadow: none;
+            text-shadow: none;
+        }
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 45px);
+            grid-template-rows: repeat(2, 45px);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .dpad button {
+            padding: 0;
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .dpad-up { grid-column: 2; grid-row: 1; }
+        .dpad-left { grid-column: 1; grid-row: 2; }
+        .dpad-down { grid-column: 2; grid-row: 2; }
+        .dpad-right { grid-column: 3; grid-row: 2; }
+
+        @media (max-height: 550px) {
+            h1 { font-size: 15px; margin-bottom: 2px; }
+            canvas { max-height: 45vh; }
+            .dpad { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>Freaker126 Neon Snake</h1>
+
+<div class="scoreboard">
+    <div>SCORE: <span id="scoreVal">0</span></div>
+    <div>HIGH: <span id="highVal">0</span></div>
+</div>
+
+<canvas id="snakeCanvas" width="400" height="400"></canvas>
+
+<div class="btn-container">
+    <button id="muteBtn" onclick="toggleMusic()">MUSIC: ON</button>
+    <button id="pauseBtn" onclick="togglePause()">PAUSE</button>
+    <button id="quitBtn" onclick="quitGame()">RESET</button>
+</div>
+
+<div class="dpad">
+    <button class="dpad-up" onclick="setDirection('UP')">▲</button>
+    <button class="dpad-left" onclick="setDirection('LEFT')">◄</button>
+    <button class="dpad-down" onclick="setDirection('DOWN')">▼</button>
+    <button class="dpad-right" onclick="setDirection('RIGHT')">►</button>
+</div>
+
+<script>
+const canvas = document.getElementById("snakeCanvas");
+const ctx = canvas.getContext("2d");
+
+const gridSize = 20;
+const tileCount = canvas.width / gridSize;
+
+let snake = [];
+let food = { x: 15, y: 15 };
+let dx = 1;
+let dy = 0;
+let nextDx = 1;
+let nextDy = 0;
+
+let score = 0;
+let highScore = localStorage.getItem("freaker126_snake_high") || 0;
+document.getElementById("highVal").innerText = highScore;
+
+let gameState = "START";
+let isPaused = false;
+let isMuted = false;
+
+let gameSpeed = 110;
+let lastRenderTime = 0;
+
+let audioCtx = null;
+let noteIndex = 0;
+const synthBassLine = [110.00, 130.81, 146.83, 130.81, 164.81, 146.83, 130.81, 110.00];
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playSound(type) {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    let now = audioCtx.currentTime;
+
+    if (type === 'eat') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'die') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.linearRampToValueAtTime(40, now + 0.3);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    }
+}
+
+function toggleMusic() {
+    initAudio();
+    isMuted = !isMuted;
+    const btn = document.getElementById("muteBtn");
+    if (isMuted) { btn.innerText = "MUSIC: OFF"; btn.className = "muted"; }
+    else { btn.innerText = "MUSIC: ON"; btn.className = ""; }
+}
+
+function playMusicStep() {
+    if (!audioCtx || audioCtx.state !== 'running' || gameState !== "PLAYING" || isPaused || isMuted) return;
+    
+    let now = audioCtx.currentTime;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(synthBassLine[noteIndex], now);
+    
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(now);
+    osc.stop(now + 0.12);
+    
+    noteIndex = (noteIndex + 1) % synthBassLine.length;
+}
+
+setInterval(playMusicStep, 140);
+
+function setDirection(dir) {
+    initAudio();
+    if (gameState === "START" || gameState === "GAMEOVER") {
+        startGame();
+        return;
+    }
+
+    if (dir === 'UP' && dy !== 1) { nextDx = 0; nextDy = -1; }
+    if (dir === 'DOWN' && dy !== -1) { nextDx = 0; nextDy = 1; }
+    if (dir === 'LEFT' && dx !== 1) { nextDx = -1; nextDy = 0; }
+    if (dir === 'RIGHT' && dx !== -1) { nextDx = 1; nextDy = 0; }
+}
+
+window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") setDirection('UP');
+    if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") setDirection('DOWN');
+    if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") setDirection('LEFT');
+    if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") setDirection('RIGHT');
+    if (e.key === " ") {
+        e.preventDefault();
+        if (gameState !== "PLAYING") startGame();
+    }
+    if (e.key === "p" || e.key === "P") togglePause();
+});
+
+let touchStartX = 0;
+let touchStartY = 0;
+
+canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    initAudio();
+    if (gameState !== "PLAYING") {
+        startGame();
+        return;
+    }
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: false });
+
+canvas.addEventListener("touchend", (e) => {
+    if (gameState !== "PLAYING") return;
+    let diffX = e.changedTouches[0].clientX - touchStartX;
+    let diffY = e.changedTouches[0].clientY - touchStartY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX > 20) setDirection('RIGHT');
+        else if (diffX < -20) setDirection('LEFT');
+    } else {
+        if (diffY > 20) setDirection('DOWN');
+        else if (diffY < -20) setDirection('UP');
+    }
+});
+
+function startGame() {
+    snake = [
+        { x: 10, y: 10 },
+        { x: 9, y: 10 },
+        { x: 8, y: 10 }
+    ];
+    dx = 1; dy = 0;
+    nextDx = 1; nextDy = 0;
+    score = 0;
+    document.getElementById("scoreVal").innerText = score;
+    spawnFood();
+    gameState = "PLAYING";
+    isPaused = false;
+    document.getElementById("pauseBtn").innerText = "PAUSE";
+    document.getElementById("pauseBtn").className = "";
+}
+
+function spawnFood() {
+    food = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+    };
+    for (let segment of snake) {
+        if (segment.x === food.x && segment.y === food.y) spawnFood();
+    }
+}
+
+function togglePause() {
+    if (gameState !== "PLAYING") return;
+    isPaused = !isPaused;
+    const btn = document.getElementById("pauseBtn");
+    if (isPaused) { btn.innerText = "RESUME"; btn.className = "paused"; }
+    else { btn.innerText = "PAUSE"; btn.className = ""; }
+}
+
+function quitGame() {
+    gameState = "START";
+    isPaused = false;
+    score = 0;
+    document.getElementById("scoreVal").innerText = 0;
+}
+
+function update() {
+    if (gameState !== "PLAYING" || isPaused) return;
+
+    dx = nextDx;
+    dy = nextDy;
+
+    const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+        triggerGameOver();
+        return;
+    }
+
+    for (let segment of snake) {
+        if (head.x === segment.x && head.y === segment.y) {
+            triggerGameOver();
+            return;
+        }
+    }
+
+    snake.unshift(head);
+
+    if (head.x === food.x && head.y === food.y) {
+        score += 10;
+        document.getElementById("scoreVal").innerText = score;
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem("freaker126_snake_high", highScore);
+            document.getElementById("highVal").innerText = highScore;
+        }
+        playSound('eat');
+        spawnFood();
+    } else {
+        snake.pop();
+    }
+}
+
+function triggerGameOver() {
+    playSound('die');
+    gameState = "GAMEOVER";
+}
+
+function drawText(text, x, y, color, size = "30px") {
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+    ctx.fillStyle = color;
+    ctx.font = `${size} 'Courier New'`;
+    ctx.textAlign = "center";
+    ctx.fillText(text, x, y);
+}
+
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (gameState === "START") {
+        drawText("FREAKER126 SNAKE", canvas.width / 2, canvas.height / 2 - 50, "#00ffff", "28px");
+        drawText("SWIPE / KEYS / DPAD TO MOVE", canvas.width / 2, canvas.height / 2, "#39ff14", "15px");
+        drawText("TAP OR SPACE TO START", canvas.width / 2, canvas.height / 2 + 50, "#ff007f", "18px");
+    } else if (gameState === "GAMEOVER") {
+        drawText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40, "#ff007f", "36px");
+        drawText(`FINAL SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 10, "#00ffff", "20px");
+        drawText("TAP OR SPACE TO REMATCH", canvas.width / 2, canvas.height / 2 + 60, "#39ff14", "16px");
+    } else {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "#ff007f";
+        ctx.fillStyle = "#ff007f";
+        ctx.beginPath();
+        ctx.arc((food.x * gridSize) + gridSize / 2, (food.y * gridSize) + gridSize / 2, gridSize / 2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        snake.forEach((segment, index) => {
+            if (index === 0) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = "#00ffff";
+                ctx.fillStyle = "#00ffff";
+            } else {
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = "#39ff14";
+                ctx.fillStyle = "#39ff14";
+            }
+            ctx.fillRect(segment.x * gridSize + 1, segment.y * gridSize + 1, gridSize - 2, gridSize - 2);
+        });
+
+        if (isPaused) {
+            drawText("PAUSED", canvas.width / 2, canvas.height / 2, "#39ff14", "32px");
+        }
+    }
+}
+
+function gameLoop(currentTime) {
+    window.requestAnimationFrame(gameLoop);
+    if (currentTime - lastRenderTime < gameSpeed) return;
+    lastRenderTime = currentTime;
+
+    update();
+    render();
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
